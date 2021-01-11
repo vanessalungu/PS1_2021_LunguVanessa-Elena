@@ -1,0 +1,350 @@
+#include <LiquidCrystal.h>
+#define bec A1
+#define sen A0
+LiquidCrystal lcd(12, 11, 5, 4, 3, 2);
+class PID{
+    float kp,ki,kd;
+    float error=0,totalerror=0,c,errori=0;//erori=eroarea trecuta   
+  	public:
+    PID()
+    {
+      kp=100;
+      ki=4;
+      kd=2;
+    }
+    float GetVal(int a)
+    {
+      switch(a){
+      case 0:
+          return kp;
+        case 1:
+          return ki;
+      case 2:
+          return kd;
+      }
+    }
+    void update(int a,float b)
+    {
+      switch(a){
+      case 0:
+          kp+=b;
+        break;
+      case 1:
+          ki+=b;
+      break;  
+      case 2:
+          kd+=b;
+        break;
+      }
+    }
+    float calibrare(float t)
+    {
+      float temp = t / 1024;
+      temp = temp * 5;
+      temp = temp - 0.5;
+      temp = temp * 100;  
+      return temp;
+    }
+    int getTemp()
+    {
+        return calibrare(analogRead(sen));
+    }
+    int output(float temp)
+    {
+        
+      error=temp-getTemp();//pid_p
+      if(-3<error<3)
+        totalerror+=error;
+      c=error-errori;
+      errori=error;
+      int rez=kp*error+ki*totalerror+kd*c;
+      if(rez>255)
+        return 255;
+      else
+        if(rez<0)
+        	return 0;
+      	else
+        	return rez;
+    }
+};
+class Programe
+{
+    private:int i,temperatura=40,timpi=15,timpc=25,timpr=30;
+    public: PID pid;
+    Programe(int i)
+    {
+      i=i;
+    }
+    int getProg()
+    {
+      return i;
+    }
+    void update(int a)
+    {
+      temperatura+=a;
+    }
+    void updatetimp(int a ,int b)
+    {
+      switch(a){
+        case 1: timpi+=b;
+        break;
+        case 2: timpc+=b;
+        break;
+        case 3: timpr+=b;
+      }
+    }
+    int Gettimp(int a)
+    {
+      switch(a){
+        case 1: return timpi;
+        break;
+        case 2: return timpc;
+        break;
+        case 3: return timpr;
+      }
+    }
+    int gettemp()
+    {
+        return temperatura;
+    }
+};
+enum Meniuri{
+  Bun_venit=0,
+    Program,
+    Setup,
+    ModificaPID,
+    ModificaTemp,
+    ModificaTimp,
+    Start,
+    Proces
+};
+class Meniu
+{
+    private: Programe p[2]={(1),(2)};
+    int program=0,setup=1,setarePID=0,timp=1,mod=0;
+    Meniuri m=Bun_venit;
+    public:
+    char a='a';
+    void meniul()
+    {
+      switch(m)
+      {
+          case Bun_venit:
+              lcd.clear();
+              lcd.setCursor(0,0);
+              lcd.print("Proiect Nanu");
+              if(a!='a')
+                m=(Meniuri) ((int)m+1);
+          break;
+          case Program:
+              lcd.clear();
+              lcd.setCursor(0,0);
+              lcd.print("Programul: ");
+              lcd.print(program);
+              switch(a){
+                case 'b':m=Bun_venit;
+                break;
+                case 'n':m=(Meniuri) ((int)m+1);
+                break;
+                case '+':program++;if(program>=2)program=0;
+                break;
+                case '-':program--;if(program<0)program=1;
+              }
+          break;
+          case Setup:
+              lcd.clear();
+              lcd.setCursor(0,0);
+              lcd.print("Programul: ");
+              lcd.print(program);
+              switch(a){
+                case 'b':m=Program;
+                break;
+                case 'n':m=(Meniuri) ((int)m+setup);
+                         setup=1;
+                break;
+                case '+':setup++;if(setup>4)setup=1;
+                break;
+                case '-':setup--;if(setup<=0)setup=4;
+              }
+              lcd.setCursor(0,1);
+              switch(setup)
+              {
+                case 1:
+                      lcd.print("Modifica PID");
+                break;
+                case 2:
+                      lcd.print("Modifica Temperatura");
+                break;
+                case 3:
+                      lcd.print("modifica timp");
+                break;
+                case 4:
+                      lcd.print("Start");
+                break;
+              }
+          break;
+          case ModificaPID:
+              lcd.clear();
+              lcd.setCursor(0,0);
+              lcd.print("Valoarea ");
+              switch(a){
+                case 'b':setarePID--;if(setarePID<0) setarePID=3;
+                break;
+                case 'n':setarePID++; if(setarePID>=3) m=Setup;
+                break;
+                case '+':p[program].pid.update(setarePID,0.1);
+                break;
+                case '-':p[program].pid.update(setarePID,-0.1);
+              }
+             switch(setarePID){
+              case 0 : lcd.print("kp :");
+              break;
+              case 1 : lcd.print("ki :");
+              break;
+              case 2 : lcd.print("kd :");
+              break;
+             }
+              lcd.print(p[program].pid.GetVal(setarePID));
+          break;
+          case ModificaTemp:
+              lcd.clear();
+              lcd.setCursor(0,0);
+              lcd.print("Temperatura : ");
+              switch(a){
+                case 'b':m=Setup;
+                break;
+                case 'n':m=Setup;
+                break;
+                case '+':p[program].update(1);
+                break;
+                case '-':p[program].update(-1);
+              }
+              lcd.print(p[program].gettemp());
+          break;
+          case ModificaTimp:
+              lcd.clear();
+              lcd.setCursor(0,0);
+              lcd.print("Timp ");
+              switch(a){
+                case 'b':timp--;if(timp<0) m=Setup;
+                break;
+                case 'n':timp++;if(timp>3)m=Setup;
+                break;
+                case '+':p[program].updatetimp(timp,1);
+                break;
+                case '-':p[program].updatetimp(timp,-1);
+              }
+              lcd.setCursor(0,1);
+              switch (timp){
+                case 1:
+                  lcd.print("Incalzire");
+                break;
+                case 2:
+                  lcd.print("Mentinere");
+                break;
+                case 3:
+                  lcd.print("Racire");
+                break;
+              }
+              lcd.print(p[program].Gettimp(timp));
+          break;
+          case Start:
+              lcd.clear();
+              lcd.setCursor(0,0);
+              lcd.print("Modul :");
+              switch(a){
+                case 'b':m=Setup;
+                break;
+                case 'n':m=(Meniuri) ((int)m+1);
+                break;
+                case '+':mod++;
+                break;
+                case '-':mod--;
+              }
+              switch (mod){
+                case 0:
+                  lcd.print("Incalzire");
+                  lcd.setCursor(0,1);
+                  lcd.print(p[program].gettemp());lcd.print("in");lcd.print(p[program].Gettimp(mod+1)) ;
+                break;
+                case 1:
+                  lcd.print("Mentinere");
+                  lcd.setCursor(0,1);
+                  lcd.print(p[program].gettemp());lcd.print("in");lcd.print(p[program].Gettimp(mod+1));
+                break;
+                case 2:
+                  lcd.print("Racire");
+                  lcd.setCursor(0,1);
+                  lcd.print(p[program].gettemp());lcd.print("in");lcd.print(p[program].Gettimp(mod+1));
+                break;
+              }
+              lcd.print("    ");
+              lcd.print(p[program].pid.getTemp());
+          break;
+          case Proces:
+            while(mod<3){
+            if(mod==2)
+              p[program].update(-3);
+            int timp=p[program].Gettimp(mod+1);
+            while((p[program].pid.getTemp()!=p[program].gettemp() or mod!=1) && timp>0 )
+                {
+                    lcd.clear();
+                    lcd.setCursor(0,0);
+                    switch (mod){
+                      case 0:
+                        lcd.print("Incalzire");
+                        lcd.print(p[program].gettemp());
+                        lcd.setCursor(0,1);
+                        lcd.print(p[program].pid.getTemp());lcd.print("in");lcd.print(timp) ;
+                      break;
+                      case 1:
+                        lcd.print("Mentinere");
+                        lcd.print(p[program].gettemp());
+                        lcd.setCursor(0,1);lcd.print(p[program].pid.getTemp());lcd.print("in");lcd.print(timp);
+                      break;
+                      case 2:
+                        lcd.print("Racire");
+                        lcd.print(p[program].gettemp());
+                        lcd.setCursor(0,1);
+                        lcd.print(p[program].pid.getTemp());lcd.print("in");lcd.print(timp);
+                      break;
+                    }
+                    int a=p[program].pid.output(p[program].gettemp());
+                    Serial.println(a);                    
+                    analogWrite(bec,a);
+                    timp--;
+                    lcd.print("   ");
+                    lcd.print(p[program].gettemp());
+                    delay(1000);
+                }
+                m=(Meniuri) 1;
+              mod++;
+            }
+          break;
+      }
+      a='a';
+      //Serial.println(p[program].pid.getTemp());
+    }
+};
+Meniu meniu;
+PID p;
+void setup()
+{
+  Serial.begin(9600);
+  lcd.begin(16,2);
+  lcd.setCursor(0,0);
+  lcd.print("bun venit");
+  
+}
+void loop()
+{
+  meniu.meniul();
+  delay(1000);
+  if (Serial.available() > 0) {
+    char b=Serial.read();
+    if(b!=0x0A)
+    {  meniu.a = b;
+    }
+  }
+  
+}
